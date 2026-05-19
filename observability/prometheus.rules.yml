@@ -1,0 +1,48 @@
+# Prometheus alert rules for the demo Minecraft stack.
+# Loaded by prometheus via rule_files: in prometheus.yml.
+# Fired alerts are sent to mc-alertmanager (see alerting: block).
+#
+# Three deliberately-simple rules so the dashboard's alert panel always
+# has something to show during the demo:
+#   1. PaperDown        — the server itself is unreachable
+#   2. JVMHeapHigh      — paper's heap is > 85% full (the closest thing
+#                         to a "RAM" alert without adding node-exporter)
+#   3. PaperTPSDegraded — server is ticking below 18/20 (CPU-ish proxy)
+groups:
+  - name: minecraft
+    interval: 30s
+    rules:
+      - alert: PaperDown
+        expr: up{job="minecraft"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: paper
+        annotations:
+          summary: "Paper server is DOWN"
+          description: "Prometheus has not been able to scrape paper:9225 for at least 1 minute."
+
+      - alert: JVMHeapHigh
+        # heap-used / heap-max  (sladkoff exposes allocated/free/max)
+        # ignoring(type) is required so PromQL's vector matcher pairs
+        # the metrics by their (empty) non-type label set instead of
+        # trying to match type=allocated with type=free, which would
+        # yield an empty result.
+        expr: (mc_jvm_memory{type="allocated"} - ignoring(type) mc_jvm_memory{type="free"}) / ignoring(type) mc_jvm_memory{type="max"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: paper
+        annotations:
+          summary: "Paper JVM heap > 85% for 5m"
+          description: "Heap is at {{ $value | humanizePercentage }} of max. A GC pause storm or OOM is likely."
+
+      - alert: PaperTPSDegraded
+        expr: mc_tps < 18
+        for: 2m
+        labels:
+          severity: warning
+          service: paper
+        annotations:
+          summary: "Paper TPS degraded ({{ $value }} / 20)"
+          description: "Server has been ticking below 18 TPS for 2 minutes — players will feel lag."

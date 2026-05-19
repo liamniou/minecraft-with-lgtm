@@ -1,0 +1,28 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: discord
+    receivers:
+      - uid: discord-default
+        type: discord
+        disableResolveMessage: false
+        settings:
+          # Grafana expands ${VAR} from the container env. It does NOT
+          # understand bash-style fallbacks like ${VAR:-default} — the
+          # whole `VAR:-default` gets treated as one variable name,
+          # missed, and substituted with empty, which fails validation
+          # with `could not find webhook url property in settings`.
+          # The fallback lives in compose.lgtm.yaml's grafana env block,
+          # which docker-compose DOES expand with bash semantics, so
+          # DISCORD_WEBHOOK_URL is guaranteed non-empty by the time the
+          # container starts.
+          url: ${DISCORD_WEBHOOK_URL}
+          use_discord_username: false
+          title: "[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}"
+          message: |
+            {{ range .Alerts }}
+            **{{ .Labels.alertname }}** — {{ .Labels.severity }}
+            {{ .Annotations.summary }}
+            {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+            {{ end }}

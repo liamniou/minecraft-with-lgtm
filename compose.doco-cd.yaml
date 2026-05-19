@@ -1,0 +1,54 @@
+# Stage 5 — GitOps agent. Reconciles the compose files listed in .doco-cd.yaml.
+#
+# DELIBERATELY runs under its OWN compose project (`doco-cd-agent`, set via `name:`
+# below) instead of `self-hosted-minecraft`. compose-go reconciles by project label
+# and treats anything carrying the managed project's label that isn't in .doco-cd.yaml
+# as an orphan to remove — if mc-doco-cd shared that label, its first poll would
+# stop+remove itself. Same constraint every GitOps agent has (Argo CD, Flux, …).
+#
+# Updating the agent itself stays host-side (not GitOps-managed):
+#   docker compose -f compose.doco-cd.yaml pull
+#   docker compose -f compose.doco-cd.yaml up -d
+# Scope: only acts on compose projects declared in .doco-cd.yaml. Needs write access
+# to /var/run/docker.sock to manage the apps; that's a trust boundary, not a scope one.
+
+name: doco-cd-agent
+
+# `selfhosted` is created by the managed stack. Bring that up FIRST so the network exists.
+networks:
+  default:
+    name: selfhosted
+    external: true
+
+volumes:
+  doco-cd-data:
+
+services:
+  doco-cd:
+    image: ghcr.io/kimdre/doco-cd:0.88.0
+    container_name: mc-doco-cd
+    restart: unless-stopped
+    ports:
+      - "9121:9120"            # host 9121 → container 9120 (Prometheus metrics)
+    environment:
+      TZ: Europe/Stockholm
+      LOG_LEVEL: info
+      # Optional GitHub PAT — public repos work without one but get rate-limited.
+      GIT_ACCESS_TOKEN: ${GIT_ACCESS_TOKEN:-}
+      # Polling only; no webhook port published (agent stays internal).
+      # ${DOCO_CD_REPO_URL} is substituted by docker compose at parse time from .env.
+      POLL_CONFIG: |
+        - url: ${DOCO_CD_REPO_URL}
+          reference: ${DOCO_CD_REPO_REF:-main}
+          interval: 60
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - doco-cd-data:/data
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "/doco-cd", "healthcheck"]
+      start_period: 15s
+      interval: 30s
+      timeout: 5s
+      retries: 3

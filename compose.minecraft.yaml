@@ -1,0 +1,35 @@
+# Stage 0 — Minecraft. Standalone: docker compose -p self-hosted-minecraft -f compose.minecraft.yaml up -d
+# Project name `self-hosted-minecraft` must match .doco-cd.yaml so the GitOps handoff doesn't collide on container_name.
+
+networks:
+  default:
+    name: selfhosted
+    driver: bridge
+
+services:
+  paper:
+    image: itzg/minecraft-server:latest
+    container_name: paper
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+    ports:
+      - "25565:25565"           # game
+      - "9225:9225"             # prometheus exporter (sladkoff plugin)
+    environment:
+      EULA: "TRUE"
+      TYPE: PAPER
+      VERSION: "LATEST"
+      MEMORY: 2G
+      WHITELIST: "Stas1k"
+      ENFORCE_WHITELIST: "TRUE"
+      OPS: "Stas1k"
+      SPIGET_RESOURCES: "36618"   # sladkoff prometheus exporter (spigotmc.org/resources/36618)
+    volumes:
+      - ./minecraft/data:/data
+    healthcheck:
+      test: ["CMD", "mc-health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 5m

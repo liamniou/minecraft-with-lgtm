@@ -1,0 +1,40 @@
+# Alertmanager config for the demo stack.
+#
+# Routing is intentionally minimal — every alert goes to a single
+# Discord receiver. The webhook URL is templated from the
+# DISCORD_WEBHOOK_URL env var set in compose.lgtm.yaml; if it's empty
+# the receiver still loads but no notification goes out (perfect for
+# the offline demo case — alerts are still visible in the AM UI and in
+# Grafana's alert-list panel).
+global:
+  resolve_timeout: 1m
+
+route:
+  receiver: discord
+  group_by: ['alertname', 'severity']
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 1h
+
+receivers:
+  - name: discord
+    discord_configs:
+      # The URL is read from a file written at container start from the
+      # DISCORD_WEBHOOK_URL env var (see compose.lgtm.yaml entrypoint).
+      # If the env var is empty a placeholder is written, sends will
+      # 4xx silently, and everything else (UI, dashboard) still works.
+      - webhook_url_file: /tmp/discord-webhook.url
+        send_resolved: true
+        title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
+        message: |-
+          {{ range .Alerts }}
+          **{{ .Labels.alertname }}** — `{{ .Labels.severity }}` on `{{ .Labels.service }}`
+          {{ .Annotations.summary }}
+          {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+          {{ end }}
+
+inhibit_rules:
+  # If the server is down, suppress the per-metric warnings about it.
+  - source_matchers: ['alertname="PaperDown"', 'severity="critical"']
+    target_matchers: ['severity="warning"', 'service="paper"']
+    equal: ['service']

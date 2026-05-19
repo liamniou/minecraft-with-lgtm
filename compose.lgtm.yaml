@@ -1,0 +1,122 @@
+# Stages 1-4 — LGTM observability stack + paper log shipper. Standalone:
+# docker compose -p self-hosted-minecraft -f compose.lgtm.yaml up -d
+# Project name `self-hosted-minecraft` must match .doco-cd.yaml so the GitOps handoff doesn't collide on container_name.
+
+networks:
+  default:
+    name: selfhosted
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  loki-data:
+  grafana-data:
+  alertmanager-data:
+
+services:
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mc-prometheus
+    restart: unless-stopped
+    ports:
+      - "9095:9090"            # host 9095 → container 9090 (defaults are taken by the prod stack)
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus.rules.yml:/etc/prometheus/rules/prometheus.rules.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - alertmanager
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: mc-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9097:9093"            # host 9097 → container 9093 (default 9093 is owned by the prod stack)
+    environment:
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+    # Alertmanager doesn't expand env vars in its config, so write the
+    # webhook URL to a file the config references via webhook_url_file.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        URL="${DISCORD_WEBHOOK_URL:-https://discord.com/api/webhooks/0/disabled}"
+        printf '%s' "$$URL" > /tmp/discord-webhook.url
+        exec /bin/alertmanager \
+          --config.file=/etc/alertmanager/alertmanager.yml \
+          --storage.path=/alertmanager \
+          --web.external-url=http://localhost:9097
+    volumes:
+      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+
+  loki:
+    image: grafana/loki:latest
+    container_name: mc-loki
+    restart: unless-stopped
+    ports:
+      - "3110:3100"            # host 3110 → container 3100
+    command: "-config.file=/etc/loki/local-config.yaml"
+    volumes:
+      - ./observability/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+
+  # Host CPU/RAM/disk/network. pid:host + bind mounts let it observe the host, not itself.
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: mc-node-exporter
+    restart: unless-stopped
+    pid: host
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    volumes:
+      - /proc:/host/proc:ro,rslave
+      - /sys:/host/sys:ro,rslave
+      - /:/rootfs:ro,rslave
+
+  obs-alloy:
+    image: grafana/alloy:latest
+    container_name: mc-obs-alloy
+    restart: unless-stopped
+    ports:
+      - "12355:12345"          # host 12355 → container 12345
+    command:
+      - "run"
+      - "--server.http.listen-addr=0.0.0.0:12345"
+      - "--storage.path=/var/lib/alloy/data"
+      - "/etc/alloy/config.alloy"
+    volumes:
+      - ./observability/alloy.alloy:/etc/alloy/config.alloy:ro
+      - ./minecraft/data/logs:/var/log/minecraft:ro
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mc-grafana
+    restart: unless-stopped
+    ports:
+      - "3030:3000"            # host 3030 → container 3000
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"          # so the meetup audience can view dashboards without login
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      # Fallback to a dead webhook so Grafana's contact point always has a non-empty URL.
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-https://discord.com/api/webhooks/0/disabled}
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+      - alertmanager

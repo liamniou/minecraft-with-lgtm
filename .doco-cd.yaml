@@ -1,0 +1,8 @@
+# Doco-CD manifest — which compose files in this repo to reconcile, under project
+# `self-hosted-minecraft`. The agent itself (compose.doco-cd.yaml) is intentionally
+# excluded and runs under a separate project; see that file. Docs: https://doco.cd/latest/Deploy-Settings/
+name: self-hosted-minecraft
+working_dir: ./
+compose_files:
+  - compose.minecraft.yaml
+  - compose.lgtm.yaml

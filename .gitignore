@@ -1,0 +1,32 @@
+node_modules/
+dist/
+*.pdf
+*.pptx
+*.html
+!slides/images/**
+.DS_Store
+
+# Secrets
+.env
+
+# Terraform — never commit tfvars (may contain API tokens) or state
+# (always contains secrets in plaintext). The .example file is fine.
+*.tfvars
+!*.tfvars.example
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Minecraft runtime data — generated on first boot. Exception: ship the sladkoff
+# exporter config (v2.4.2 has no env-var override for its bind host). `dir/*` form
+# is required because git ignores `!` re-includes under an excluded parent dir.
+minecraft/data/*
+!minecraft/data/plugins/
+minecraft/data/plugins/*
+!minecraft/data/plugins/PrometheusExporter/
+minecraft/data/plugins/PrometheusExporter/*
+!minecraft/data/plugins/PrometheusExporter/config.yml
+
+# Personal notes & talk slides — kept locally, not in git
+RESUME.md
+slides/

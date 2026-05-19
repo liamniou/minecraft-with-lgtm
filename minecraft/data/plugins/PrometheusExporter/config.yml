@@ -1,0 +1,21 @@
+# Sladkoff Prometheus Exporter — shipped via repo to override v2.4.2's
+# default `host: localhost` (which binds 127.0.0.1 inside Docker and is
+# unreachable from prometheus). v3.x added env-var overrides; we're on v2.4.2.
+host: 0.0.0.0
+port: 9225
+enable_metrics:
+  entities_total: true
+  villagers_total: true
+  loaded_chunks_total: true
+  jvm_memory: true
+  players_online_total: true
+  players_total: true
+  tps: true
+  jvm_threads: true
+  jvm_gc: true
+  tick_duration_median: true
+  tick_duration_average: true
+  tick_duration_min: false
+  tick_duration_max: true
+  player_online: false
+  player_statistic: false

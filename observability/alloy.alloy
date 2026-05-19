@@ -1,0 +1,25 @@
+logging {
+  level = "info"
+}
+
+// ── log shipping: paper's latest.log -> loki ─────────────────────────────
+
+local.file_match "minecraft" {
+  path_targets = [{
+    __path__ = "/var/log/minecraft/latest.log",
+    job      = "minecraft",
+    instance = "paper-demo",
+    service  = "paper",
+  }]
+}
+
+loki.source.file "minecraft" {
+  targets    = local.file_match.minecraft.targets
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
