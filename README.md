@@ -10,9 +10,9 @@ Companion to the meetup talk **"Self-hosting with Minecraft: a hobby that saves 
 |---------------|-----------|--------------------------------------------------------------------|
 | `paper`       | 25565     | Minecraft (PaperMC, latest version). Auto-installs the Prometheus exporter plugin. |
 | `paper`       | 9225      | Prometheus exporter (sladkoff plugin) — TPS, players, chunks, JVM. |
-| `prometheus`  | 9090      | Scrapes `paper:9225`, node-exporter, alloy, alertmanager, doco-cd. |
+| `prometheus`  | 9090      | TSDB + rule evaluator. Receives metrics via `remote_write` from Alloy. No scrape configs. |
 | `loki`        | 3100      | Log store.                                                         |
-| `obs-alloy`   | 12345     | Grafana Alloy — tails `paper`'s `latest.log` → Loki, exposes own metrics. |
+| `obs-alloy`   | 12345     | Grafana Alloy — **one agent for everything**: scrapes all metric targets → `remote_write` to Prometheus, tails `paper`'s `latest.log` → Loki. |
 | `grafana`     | 3000      | Dashboards + Discord alerting. Provisioned datasources + dashboard.|
 | `doco-cd`     | 9120      | [GitOps reconciler](https://github.com/kimdre/doco-cd) — polls this repo, reconciles compose stacks on change. |
 
