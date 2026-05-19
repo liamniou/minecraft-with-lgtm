@@ -8,7 +8,7 @@ Companion to the meetup talk **"Self-hosting with Minecraft: a hobby that saves 
 
 | Service       | Port      | What it does                                                       |
 |---------------|-----------|--------------------------------------------------------------------|
-| `paper`       | 25565     | Minecraft (PaperMC, latest 1.21.x). Auto-installs the Prometheus exporter plugin. |
+| `paper`       | 25565     | Minecraft (PaperMC, latest version). Auto-installs the Prometheus exporter plugin. |
 | `paper`       | 9225      | Prometheus exporter (sladkoff plugin) — TPS, players, chunks, JVM. |
 | `prometheus`  | 9090      | Scrapes `paper:9225`, node-exporter, alloy, alertmanager, doco-cd. |
 | `loki`        | 3100      | Log store.                                                         |
